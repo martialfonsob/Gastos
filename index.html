@@ -123,16 +123,17 @@ function lineC(){
 function inout(){
  const ms=[],n=new Date();
  for(let i=5;i>=0;i--){const x=new Date(n.getFullYear(),n.getMonth()-i,1);ms.push([x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'),MN[x.getMonth()]])}
- const v=ms.map(([k])=>[sum(S.tx.filter(t=>t.kind==='ingres'&&ym(t.date)===k)),sum(S.tx.filter(t=>t.kind==='gasto'&&ym(t.date)===k))]);
- const TI=sum(S.tx.filter(t=>t.kind==='ingres')),TG=sum(S.tx.filter(t=>t.kind==='gasto')),mx=Math.max(1,...v.flat()),H=100,Z=118;
+ const v=ms.map(([k])=>[sum(S.tx.filter(t=>t.kind==='ingres'&&t.payer!=='pares'&&ym(t.date)===k)),sum(S.tx.filter(t=>t.kind==='gasto'&&ym(t.date)===k))]);
+ const TI=sum(S.tx.filter(t=>t.kind==='ingres'&&t.payer!=='pares')),TP=sum(S.tx.filter(t=>t.kind==='ingres'&&t.payer==='pares')),TG=sum(S.tx.filter(t=>t.kind==='gasto')),mx=Math.max(1,...v.flat()),H=100,Z=118;
  const lb=x=>x>=1000?(x/1000).toFixed(1)+'k':Math.round(x);let s='';
  ms.forEach(([k,l],i)=>{const x=i*56+8;[0,1].forEach(j=>{const h=v[i][j]/mx*H,cx=x+j*22;s+=`<rect x="${cx}" y="${Z-h}" width="20" height="${h}" rx="3" style="fill:var(${j?'--r':'--g'})"/>${v[i][j]?`<text x="${cx+10}" y="${Z-h-4}" text-anchor="middle" style="fill:var(--mu);font-size:9px">${lb(v[i][j])}</text>`:''}`});
   s+=`<text x="${x+21}" y="136" text-anchor="middle" style="fill:var(--mu);font-size:11px">${l}</text>`});
- return `<div class="tri"><div><div class="k">Ingressos</div><b class="g">${eur(TI)}</b></div><div><div class="k">Despeses</div><b class="r">${eur(TG)}</b></div><div><div class="k">Balanç</div><b>${eur(TI-TG)}</b></div></div><svg viewBox="0 0 340 142" width="100%">${s}</svg><div class="lg"><span><i style="background:var(--g)"></i>Ingressos</span><span><i style="background:var(--r)"></i>Despeses</span><span>Últims 6 mesos</span></div>`;
+ return `<div class="tri"><div><div class="k">Ingressos</div><b class="g">${eur(TI)}</b></div><div><div class="k">Despeses</div><b class="r">${eur(TG)}</b></div><div><div class="k">Balanç</div><b>${eur(TI+TP-TG)}</b></div></div>${TP?`<div class="sub" style="margin:-2px 0 10px">El balanç inclou ${eur(TP)} de pagaments dels pares.</div>`:''}<svg viewBox="0 0 340 142" width="100%">${s}</svg><div class="lg"><span><i style="background:var(--g)"></i>Ingressos</span><span><i style="background:var(--r)"></i>Despeses</span><span>Últims 6 mesos</span></div>`;
 }
 function openP(){
+ const lp=S.tx.filter(t=>t.kind==='ingres'&&t.payer==='pares').sort(byD)[0];
  $('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet"><h3>Deute dels pares</h3><p class="mu">Ara et deuen <b style="color:var(--tx)">${eur(owedNow())}</b>.</p>
- <label>Data de l’últim pagament</label><input type="date" id="cd" value="${S.cut||''}"><p class="sub">Els gastos de pares anteriors a aquesta data compten com a pagats. Els d’aquest dia i els posteriors, com a pendents. En desar la data es reinicien les marques manuals.</p><div class="er" id="pe"></div>
+ <label>Data de l’últim pagament</label><input type="date" id="cd" value="${S.cut||''}">${lp?`<button class="sec" style="margin-top:8px" onclick="$('#cd').value='${lp.date}'">Usa la data de l’últim ingrés dels pares (${dd(lp.date)})</button>`:''}<p class="sub">Els gastos de pares anteriors a aquesta data compten com a pagats. Els d’aquest dia i els posteriors, com a pendents. En desar la data es reinicien les marques manuals.</p><div class="er" id="pe"></div>
  <button class="pri" onclick="svC()">Desa la data</button>
  <button class="sec" onclick="allP()">Han pagat tot ara (reinicia a 0 €)</button>
  <button class="sec" onclick="openI()">Afegeix un gasto manualment</button>
@@ -149,10 +150,10 @@ function byType(){return bt(S.tx.filter(t=>t.kind==='gasto'&&(per==='tot'||ym(t.
 
 /* ---------- Moviments ---------- */
 const byD=(a,b)=>a.date<b.date?1:a.date>b.date?-1:b.id>a.id?1:-1;
-function rowH(t,tk){const P=(S.projects||[]).find(p=>p.id===t.proj);return `<div class="row" onclick="openM('${t.id}')"><div><b>${t.ok?'':'<span class="pd"></span>'}${esc(t.concept)}</b><small>${t.date.slice(8)}/${t.date.slice(5,7)}/${t.date.slice(0,4)} · ${esc(t.type||'Sense tipus')}${t.kind==='gasto'?' · '+(t.payer==='pares'?'Pares':'Jo'):''}${P?' · '+esc(pjn(P)):''}${tk&&tk<t.amt-.004?' · pendent '+eur(tk):''}</small></div><span class="amt ${t.kind==='ingres'?'g':'r'}">${t.kind==='ingres'?'+':'−'}${eur(t.amt)}</span></div>`}
+function rowH(t,tk){const P=(S.projects||[]).find(p=>p.id===t.proj);return `<div class="row" onclick="openM('${t.id}')"><div><b>${t.ok?'':'<span class="pd"></span>'}${esc(t.concept)}</b><small>${t.date.slice(8)}/${t.date.slice(5,7)}/${t.date.slice(0,4)} · ${esc(t.type||'Sense tipus')}${t.payer==='pares'?' · Pares':(t.kind==='gasto'?' · Jo':'')}${P?' · '+esc(pjn(P)):''}${tk&&tk<t.amt-.004?' · pendent '+eur(tk):''}</small></div><span class="amt ${t.kind==='ingres'?'g':'r'}">${t.kind==='ingres'?'+':'−'}${eur(t.amt)}</span></div>`}
 function lst(){
  const q=F.q.trim().toLowerCase();
- const f=S.tx.filter(t=>(!q||t.concept.toLowerCase().includes(q))&&(!F.type||(F.type==='_'?!t.type:t.type===F.type))&&(!F.kind||t.kind===F.kind)&&(!F.payer||(t.kind==='gasto'&&t.payer===F.payer))&&(!F.pend||!t.ok)&&(!F.proj||t.proj===F.proj)).sort(byD);
+ const f=S.tx.filter(t=>(!q||t.concept.toLowerCase().includes(q))&&(!F.type||(F.type==='_'?!t.type:t.type===F.type))&&(!F.kind||t.kind===F.kind)&&(!F.payer||t.payer===F.payer)&&(!F.pend||!t.ok)&&(!F.proj||t.proj===F.proj)).sort(byD);
  return `<div class="mu" style="margin-bottom:8px">${f.length} moviments · <span class="g">+${eur(sum(f.filter(t=>t.kind==='ingres')))}</span> · <span class="r">−${eur(sum(f.filter(t=>t.kind==='gasto')))}</span></div><div class="card">${f.length?f.map(t=>rowH(t)).join(''):'<p class="mu">Cap moviment amb aquests filtres.</p>'}</div>`;
 }
 const chip=(l,on,fn)=>`<button class="${on?'on':''}" onclick="${fn}">${l}</button>`;
@@ -200,7 +201,7 @@ function showM(er){
  const d=D,sb=(k,a)=>`<div class="seg">${a.map(([v,l])=>`<button class="${d[k]===v?'on':''}" onclick="sd('${k}','${v}')">${l}</button>`).join('')}</div>`,P=S.projects||[];
  $('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet"><h3>${d.id?'Edita el moviment':'Nou moviment'}</h3>
  ${sb('kind',[['gasto','Despesa'],['ingres','Ingrés']])}
- ${d.kind==='gasto'?`<label>Qui ho ha de pagar</label>${sb('payer',[['jo','Jo'],['pares','Els meus pares']])}`:''}
+ <label>${d.kind==='gasto'?'Qui ho ha de pagar':'Qui t’ho ha pagat'}</label>${sb('payer',[['jo',d.kind==='gasto'?'Jo':'Jo (ho he guanyat)'],['pares','Els meus pares']])}
  <label>Tipus</label><select id="fty" onchange="D.type=this.value"><option value="">Tria un tipus…</option>${[...new Set([...types(),d.type].filter(Boolean))].map(x=>`<option ${d.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
  ${P.length?`<label>Projecte</label><select id="fpr"><option value="">Cap</option>${P.map(p=>`<option value="${p.id}" ${d.proj===p.id?'selected':''}>${esc(pjn(p))}</option>`).join('')}</select>`:''}
  <label>Dia</label><input type="date" id="fd" value="${d.date}">
@@ -216,7 +217,7 @@ function svM(){
  syncM();const a=parseFloat(String(D.amtS).replace(',','.'));
  if(!D.date)return showM('Falta el dia.');if(!(a>0))return showM('L’import ha de ser més gran que 0.');
  if(!D.type)return showM('Tria un tipus.');if(!D.concept.trim())return showM('Escriu el concepte.');
- const t={id:D.id||Date.now()+''+Math.floor(Math.random()*1e3),date:D.date,amt:Math.round(a*100)/100,kind:D.kind,payer:D.kind==='gasto'?D.payer:'jo',type:D.type,concept:D.concept.trim(),ok:true,proj:D.proj||'',po:D.po};
+ const t={id:D.id||Date.now()+''+Math.floor(Math.random()*1e3),date:D.date,amt:Math.round(a*100)/100,kind:D.kind,payer:D.payer,type:D.type,concept:D.concept.trim(),ok:true,proj:D.proj||'',po:D.po};
  const i=S.tx.findIndex(x=>x.id===t.id);if(i>=0)S.tx[i]=t;else S.tx.push(t);
  save();closeM();render();
 }
