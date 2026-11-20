@@ -44,6 +44,7 @@ input,select,textarea{width:100%;font-size:16px;padding:11px;border-radius:10px;
 .pri{background:var(--inv);color:var(--invtx)}.del{background:none;color:var(--r)}.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}
 .er{color:var(--r);font-size:13px;margin-top:8px;min-height:16px}
 .lg{display:flex;gap:14px;font-size:12px;color:var(--mu);margin-top:8px}.lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.xb{border:1px solid var(--bd);background:transparent;color:var(--mu);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:600;margin-left:10px}
 </style></head><body>
 <div id="main"></div><div id="modal"></div>
 <nav>
@@ -81,19 +82,22 @@ function render(){
 
 /* ---------- Resum ---------- */
 let rng='m';
-const owedNow=()=>Math.max(0,Math.round((sum(S.tx.filter(t=>t.kind==='gasto'&&t.payer==='pares'))-(S.rep||[]).reduce((a,x)=>a+x.a,0))*100)/100);
+const isOwed=t=>t.kind==='gasto'&&t.payer==='pares'&&(t.po==='owed'||(t.po!=='paid'&&(!S.cut||t.date>=S.cut)));
+const owedNow=()=>Math.round(sum(S.tx.filter(isOwed))*100)/100;
+const dd=d=>d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
 const fd=t=>{const d=new Date(t);return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCFullYear()).slice(2)};
-function oweList(){let rem=owedNow();const o=[];S.tx.filter(t=>t.kind==='gasto'&&t.payer==='pares').sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:b.id>a.id?1:-1).forEach(t=>{if(rem>0.004){const k=Math.min(t.amt,rem);o.push({t,take:k});rem-=k}});return o}
+const rowO=t=>`<div class="row"><div onclick="openM('${t.id}')" style="flex:1"><b>${esc(t.concept)}</b><small>${dd(t.date)} · ${esc(t.type||'Sense tipus')}</small></div><span class="amt r">${eur(t.amt)}</span><button class="xb" onclick="payT('${t.id}')">Pagat</button></div>`;
+function payT(id){const t=S.tx.find(x=>x.id===id);t.po='paid';save();render()}
 function vRes(){
  const m=cur(),bal=S.init+S.tx.reduce((a,t)=>a+sg(t),0);
  const gm=S.tx.filter(t=>t.kind==='gasto'&&ym(t.date)===m),im=S.tx.filter(t=>t.kind==='ingres'&&ym(t.date)===m);
  const sp=sum(gm),ea=sum(im),spm=sum(gm.filter(t=>t.payer!=='pares')),eam=sum(im.filter(t=>t.payer!=='pares'));
- const ow=owedNow(),ol=oweList(),pend=S.tx.filter(t=>!t.ok).length,lp=(S.rep||[]).slice(-1)[0];
+ const ow=owedNow(),ol=S.tx.filter(isOwed).sort(byD),pend=S.tx.filter(t=>!t.ok).length;
  return `${SF?'<div class="card" style="border-color:var(--r)"><b class="r">No s’està podent desar.</b><div class="sub">Obre l’app des de la icona de la pantalla d’inici i fes còpies de seguretat a Ajustos.</div></div>':''}<div class="k">Diners actuals</div><div class="hero">${eur(bal)}</div>
  <div class="card"><div class="chips">${[['w','Setmana'],['m','Mes'],['y','Any'],['max','Màxim']].map(([k,l])=>`<button class="${rng===k?'on':''}" onclick="rng='${k}';render()">${l}</button>`).join('')}</div>${lineC()}</div>
  <div class="grid"><div class="card"><div class="k">Gastat aquest mes</div><div class="v r">${eur(spm)}</div><div class="sub">Total: ${eur(sp)}</div></div><div class="card"><div class="k">Guanyat aquest mes</div><div class="v g">${eur(eam)}</div><div class="sub">Total: ${eur(ea)}</div></div></div>
- <div class="card"><div class="owe"><div><div class="k">Els pares et deuen</div><div class="v">${eur(ow)}</div>${lp?`<div class="sub">Últim pagament: ${lp.d.slice(8)}/${lp.d.slice(5,7)} · ${eur(lp.a)}</div>`:''}</div><button onclick="openP()">Han pagat</button></div>
- ${ol.length?`<div class="tg" onclick="oweOpen=!oweOpen;render()">${oweOpen?'▾ Amaga':'▸ Mostra'} les ${ol.length} despeses pendents</div>`:''}${oweOpen?ol.map(x=>rowH(x.t,x.take)).join(''):''}</div>
+ <div class="card"><div class="owe"><div><div class="k">Els pares et deuen</div><div class="v">${eur(ow)}</div><div class="sub">${S.cut?'Compta des del '+dd(S.cut):'Compta tots els gastos'}</div></div><button onclick="openP()">Gestiona</button></div>
+ ${ol.length?`<div class="tg" onclick="oweOpen=!oweOpen;render()">${oweOpen?'▾ Amaga':'▸ Mostra'} les ${ol.length} despeses pendents</div>`:''}${oweOpen?ol.map(rowO).join(''):''}</div>
  ${pend?`<div class="card" onclick="F.pend=true;go('mov')"><span class="pd"></span><b>${pend}</b> moviments per classificar ›</div>`:''}
  <div class="card"><h2>Ingressos vs despeses</h2>${inout()}</div>
  <div class="card"><h2>On gasto més</h2><div class="chips"><button class="${per==='mes'?'on':''}" onclick="per='mes';render()">Aquest mes</button><button class="${per==='tot'?'on':''}" onclick="per='tot';render()">Tot</button></div>${byType()}</div>`;
@@ -127,14 +131,18 @@ function inout(){
  return `<div class="tri"><div><div class="k">Ingressos</div><b class="g">${eur(TI)}</b></div><div><div class="k">Despeses</div><b class="r">${eur(TG)}</b></div><div><div class="k">Balanç</div><b>${eur(TI-TG)}</b></div></div><svg viewBox="0 0 340 142" width="100%">${s}</svg><div class="lg"><span><i style="background:var(--g)"></i>Ingressos</span><span><i style="background:var(--r)"></i>Despeses</span><span>Últims 6 mesos</span></div>`;
 }
 function openP(){
- const o=owedNow(),hs=(S.rep||[]).slice(-3).reverse();
- $('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet"><h3>Els pares m’ho han pagat</h3><p class="mu">Ara et deuen <b style="color:var(--tx)">${eur(o)}</b>.</p>
- <label>Quant t’han pagat? (€)</label><input id="pp" inputmode="decimal" value="${String(o).replace('.',',')}"><div class="er" id="pe"></div>
- <button class="pri" onclick="svP(1)">Han pagat tot · reinicia a 0 €</button><button class="sec" onclick="svP(0)">Registra només aquest import</button>
- ${hs.length?`<label>Últims pagaments</label>${hs.map(x=>`<div class="row"><span>${x.d.slice(8)}/${x.d.slice(5,7)}/${x.d.slice(0,4)}</span><span class="amt g">${eur(x.a)}</span></div>`).join('')}<button class="del" onclick="unP()">Desfés l’últim pagament</button>`:''}</div></div>`;
+ $('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet"><h3>Deute dels pares</h3><p class="mu">Ara et deuen <b style="color:var(--tx)">${eur(owedNow())}</b>.</p>
+ <label>Data de l’últim pagament</label><input type="date" id="cd" value="${S.cut||''}"><p class="sub">Els gastos de pares anteriors a aquesta data compten com a pagats. Els d’aquest dia i els posteriors, com a pendents. En desar la data es reinicien les marques manuals.</p><div class="er" id="pe"></div>
+ <button class="pri" onclick="svC()">Desa la data</button>
+ <button class="sec" onclick="allP()">Han pagat tot ara (reinicia a 0 €)</button>
+ <button class="sec" onclick="openI()">Afegeix un gasto manualment</button>
+ ${S.cut?`<button class="del" onclick="S.cut='';S.tx.forEach(t=>{delete t.po});save();closeM();render()">Treu la data i compta tots els gastos</button>`:''}</div></div>`;
 }
-function svP(all){const o=owedNow();let a=all?o:parseFloat($('#pp').value.replace(',','.'));if(!(a>0))return $('#pe').textContent='No hi ha res a pagar o l’import no és vàlid.';(S.rep=S.rep||[]).push({d:today(),a:Math.round(a*100)/100});save();closeM();render()}
-function unP(){(S.rep||[]).pop();save();closeM();render()}
+function svC(){const v=$('#cd').value;if(!v)return $('#pe').textContent='Tria una data.';S.cut=v;S.tx.forEach(t=>{delete t.po});save();closeM();render()}
+function allP(){S.tx.filter(isOwed).forEach(t=>t.po='paid');save();closeM();render()}
+function il(){const l=S.tx.filter(t=>t.kind==='gasto'&&t.payer==='pares'&&!isOwed(t)).sort(byD).slice(0,60);return l.length?l.map(t=>`<div class="row" onclick="inc('${t.id}')"><div><b>${esc(t.concept)}</b><small>${dd(t.date)} · ${esc(t.type||'Sense tipus')}</small></div><span class="amt">${eur(t.amt)}</span></div>`).join(''):'<p class="mu">No hi ha gastos pagats per afegir.</p>'}
+function inc(id){const t=S.tx.find(x=>x.id===id);t.po='owed';save();$('#il').innerHTML=il()}
+function openI(){$('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this){closeM();render()}"><div class="sheet"><h3>Afegeix un gasto al deute</h3><p class="mu">Toca els gastos de pares que vols tornar a comptar com a pendents.</p><div id="il">${il()}</div><button class="pri" onclick="closeM();render()">Fet</button></div></div>`}
 
 function bt(f){const g={};f.forEach(t=>{const k=t.type||'Sense tipus';g[k]=(g[k]||0)+t.amt});const e=Object.entries(g).sort((a,b)=>b[1]-a[1]),tot=e.reduce((a,x)=>a+x[1],0);if(!e.length)return '<p class="mu">Cap despesa.</p>';return e.map(([k,v])=>`<div class="br"><div class="bl"><span>${esc(k)}</span><span>${eur(v)} · ${Math.round(v/tot*100)}%</span></div><div class="bt"><i style="width:${v/e[0][1]*100}%;background:${tc(k)}"></i></div></div>`).join('')}
 function byType(){return bt(S.tx.filter(t=>t.kind==='gasto'&&(per==='tot'||ym(t.date)===cur())))}
@@ -208,7 +216,7 @@ function svM(){
  syncM();const a=parseFloat(String(D.amtS).replace(',','.'));
  if(!D.date)return showM('Falta el dia.');if(!(a>0))return showM('L’import ha de ser més gran que 0.');
  if(!D.type)return showM('Tria un tipus.');if(!D.concept.trim())return showM('Escriu el concepte.');
- const t={id:D.id||Date.now()+''+Math.floor(Math.random()*1e3),date:D.date,amt:Math.round(a*100)/100,kind:D.kind,payer:D.kind==='gasto'?D.payer:'jo',type:D.type,concept:D.concept.trim(),ok:true,proj:D.proj||''};
+ const t={id:D.id||Date.now()+''+Math.floor(Math.random()*1e3),date:D.date,amt:Math.round(a*100)/100,kind:D.kind,payer:D.kind==='gasto'?D.payer:'jo',type:D.type,concept:D.concept.trim(),ok:true,proj:D.proj||'',po:D.po};
  const i=S.tx.findIndex(x=>x.id===t.id);if(i>=0)S.tx[i]=t;else S.tx.push(t);
  save();closeM();render();
 }
